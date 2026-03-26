@@ -726,14 +726,28 @@ function openPov(key,el){
   document.getElementById('pov-dt').textContent=dt.getDate()+' de '+MF[dt.getMonth()];
   document.getElementById('pobs').value=w.obs||'';
   renderPovChips();
-  var pov=document.getElementById('pov');pov.style.display='block';
-  document.getElementById('pov-bg').style.display='block';
-  var rect=el.getBoundingClientRect(),pw=262;
-  var left=rect.left+window.scrollX,top=rect.bottom+window.scrollY+6;
-  if(left+pw>window.innerWidth-8)left=window.innerWidth-pw-8;
-  if(left<6)left=6;
-  if(top+340>window.innerHeight+window.scrollY)top=rect.top+window.scrollY-345;
-  pov.style.left=left+'px';pov.style.top=top+'px';
+  var pov=document.getElementById('pov');
+  var bg=document.getElementById('pov-bg');
+  // reset position first so offsetHeight is accurate
+  pov.style.left='0px'; pov.style.top='0px';
+  pov.style.display='block';
+  bg.style.display='block';
+  var pw=262, ph=pov.offsetHeight||380;
+  var vw=window.innerWidth, vh=window.innerHeight;
+  // on small screens just center it
+  if(vw < 500){
+    pov.style.left=Math.max(6,(vw-pw)/2)+'px';
+    pov.style.top=Math.max(8,(vh-ph)/2)+'px';
+    return;
+  }
+  var rect=el.getBoundingClientRect();
+  var left=rect.left, top=rect.bottom+6;
+  if(left+pw>vw-8) left=vw-pw-8;
+  if(left<6) left=6;
+  if(top+ph>vh-8) top=rect.top-ph-6;
+  if(top<8) top=8;
+  pov.style.left=left+'px';
+  pov.style.top=top+'px';
 }
 function closePov(){document.getElementById('pov').style.display='none';document.getElementById('pov-bg').style.display='none';popKey=null;}
 function renderPovChips(){
@@ -898,7 +912,14 @@ function renderAll(){
   renderHeatmap();renderMtabs();renderLeg();renderCal();
   renderRegChips();renderCatMg();renderRC();
 }
-// INIT
+// INIT — ensure popover is direct child of body
+(function(){
+  var bg=document.getElementById('pov-bg');
+  var pov=document.getElementById('pov');
+  var ut=document.getElementById('undo-toast');
+  var t=document.getElementById('toast');
+  [bg,pov,ut,t].forEach(function(el){if(el&&el.parentNode!==document.body)document.body.appendChild(el);});
+})();
 document.getElementById('sl-week').value=metaWeek;document.getElementById('vl-week').textContent=metaWeek;
 document.getElementById('sl-year').value=metaYear;document.getElementById('vl-year').textContent=metaYear;
 var nd=TODAY;document.getElementById('reg-date').value=nd.getFullYear()+'-'+pad(nd.getMonth()+1)+'-'+pad(nd.getDate());

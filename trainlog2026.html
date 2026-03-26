@@ -210,6 +210,7 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
     <button class="hbtn" id="btn-reg"  onclick="togglePanel('reg')">+ Registrar</button>
     <button class="hbtn" id="btn-cat"  onclick="togglePanel('cat')">⚙ Categorias</button>
     <button class="hbtn" id="btn-meta" onclick="togglePanel('meta')">🎯 Metas</button>
+    <button class="hbtn" id="btn-bulk" onclick="togglePanel('bulk')">⚡ Em massa</button>
     <button class="hbtn danger" id="btn-clear" onclick="togglePanel('clear')">🗑 Limpar</button>
     <button class="hbtn" onclick="exportData()">↓ Export</button>
     <label class="hbtn" style="cursor:pointer">↑ Import<input type="file" accept=".json" onchange="importData(event)" style="display:none"/></label>
@@ -275,6 +276,34 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
         <span style="font-size:10px;color:var(--mu)">dias/ano</span>
       </div>
     </div>
+  </div>
+</div>
+
+
+<!-- BULK REGISTER -->
+<div id="panel-bulk" class="panel">
+  <div class="ptitle">Registrar em massa</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div>
+      <div style="font-size:10px;color:var(--mu2);margin-bottom:6px">Modalidade</div>
+      <div class="chips" id="bulk-chips"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:var(--mu2);margin-bottom:6px">Período</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="date" class="ri" id="bulk-from" style="max-width:135px"/>
+        <span style="font-size:10px;color:var(--mu)">até</span>
+        <input type="date" class="ri" id="bulk-to" style="max-width:135px"/>
+      </div>
+    </div>
+  </div>
+  <div style="margin-bottom:12px">
+    <div style="font-size:10px;color:var(--mu2);margin-bottom:6px">Dias da semana</div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap" id="bulk-days"></div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="font-size:11px;color:var(--mu)" id="bulk-preview">Selecione modalidade, período e dias</div>
+    <button class="rbtn" id="bulk-do-btn" onclick="doBulk()" disabled>Registrar</button>
   </div>
 </div>
 
@@ -642,6 +671,80 @@ function doClear(){
   document.getElementById('btn-clear').classList.remove('on');
 }
 
+
+// ── BULK REGISTER ──────────────────────────────────────────
+var bulkChip = null;
+var bulkDays = {0:false,1:true,2:false,3:true,4:false,5:true,6:false}; // default: seg/qua/sex
+
+function initBulkPanel(){
+  // chips
+  document.getElementById('bulk-chips').innerHTML = cats.map(function(c){
+    var sel = bulkChip === c.id;
+    return '<div class="chip'+(sel?' sel':'')+'" style="'+(sel?'background:'+c.color+';border-color:'+c.color+';color:#fff':'border-color:'+c.color+'55;color:'+c.color)+'" onclick="setBulkChip(''+c.id+'')">'+c.icon+' '+c.name+'</div>';
+  }).join('');
+  // day toggles
+  var dayNames = ['D','S','T','Q','Q','S','S'];
+  document.getElementById('bulk-days').innerHTML = dayNames.map(function(n,i){
+    var on = bulkDays[i];
+    return '<div onclick="toggleBulkDay('+i+')" style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid;transition:all .15s;user-select:none;'+(on?'background:var(--c1);border-color:var(--c1);color:#fff':'border-color:var(--b2);color:var(--mu2)')+'">'+n+'</div>';
+  }).join('');
+  updateBulkPreview();
+}
+function setBulkChip(id){
+  bulkChip = bulkChip===id ? null : id;
+  initBulkPanel();
+}
+function toggleBulkDay(i){
+  bulkDays[i] = !bulkDays[i];
+  initBulkPanel();
+}
+function getBulkDates(){
+  var from = document.getElementById('bulk-from').value;
+  var to   = document.getElementById('bulk-to').value;
+  if(!from || !to || from > to) return [];
+  var dates = [], cur = new Date(from+'T00:00:00'), end = new Date(to+'T00:00:00');
+  while(cur <= end){
+    if(bulkDays[cur.getDay()]) dates.push(dk(cur.getFullYear(), cur.getMonth()+1, cur.getDate()));
+    cur.setDate(cur.getDate()+1);
+  }
+  return dates;
+}
+function updateBulkPreview(){
+  var dates = getBulkDates();
+  var btn = document.getElementById('bulk-do-btn');
+  var prev = document.getElementById('bulk-preview');
+  if(!bulkChip){ prev.textContent='Selecione uma modalidade'; btn.disabled=true; return; }
+  if(!dates.length){ prev.textContent='Selecione um período e ao menos 1 dia da semana'; btn.disabled=true; return; }
+  var cat = cats.find(function(c){return c.id===bulkChip;});
+  var already = dates.filter(function(d){return workouts[d]&&workouts[d].counts[bulkChip]>0;}).length;
+  var news = dates.length - already;
+  prev.innerHTML = '<strong style="color:'+(cat?cat.color:'var(--c1)')+'">'+dates.length+' dias</strong> selecionados'+(already?' (<span style="color:var(--mu2)">'+already+' já registrados, serão ignorados</span>)':'');
+  btn.disabled = news === 0;
+}
+function doBulk(){
+  if(!bulkChip) return;
+  var dates = getBulkDates();
+  if(!dates.length) return;
+  undoSnapshot = snapshot();
+  var added = 0;
+  dates.forEach(function(d){
+    if(!workouts[d]) workouts[d] = {counts:{}, obs:''};
+    if(!workouts[d].counts[bulkChip]){
+      workouts[d].counts[bulkChip] = 1;
+      added++;
+    }
+  });
+  save(); renderAll();
+  pushUndo(added+' treino'+(added!==1?'s':'')+' adicionado'+(added!==1?'s':'')+' — desfazer?');
+  // close panel
+  document.getElementById('panel-bulk').classList.remove('open');
+  document.getElementById('btn-bulk').classList.remove('on');
+}
+// update preview when dates change
+document.addEventListener('change', function(e){
+  if(e.target.id==='bulk-from'||e.target.id==='bulk-to') updateBulkPreview();
+});
+
 // ── FILTER ─────────────────────────────────────────────────
 function setRange(mode,el){
   rangeMode=mode;document.querySelectorAll('.ftab').forEach(function(t){t.classList.remove('active');});el.classList.add('active');
@@ -672,10 +775,10 @@ function shiftWeek(d){var ws=getWeekStart(filterWeekOff+d);if(ws>TODAY)return;fi
 
 // ── PANELS ─────────────────────────────────────────────────
 function togglePanel(id){
-  var ids=['reg','cat','meta','clear'];
+  var ids=['reg','cat','meta','clear','bulk'];
   ids.forEach(function(k){
     var el=document.getElementById('panel-'+k),btn=document.getElementById('btn-'+k);
-    if(k===id){var o=el.classList.contains('open');el.classList.toggle('open',!o);if(btn)btn.classList.toggle('on',!o);if(k==='clear'&&!o)renderClearPanel();}
+    if(k===id){var o=el.classList.contains('open');el.classList.toggle('open',!o);if(btn)btn.classList.toggle('on',!o);if(k==='clear'&&!o)renderClearPanel();if(k==='bulk'&&!o)initBulkPanel();}
     else{el.classList.remove('open');if(btn)btn.classList.remove('on');}
   });
 }
@@ -854,7 +957,7 @@ function renderHeatmap(){
       if(!isFut&&t>0){if(t===1)bg='#1e3a5f';else if(t===2)bg='#2563a8';else if(t===3)bg='#3B82F6';else bg='#93c5fd';}
       var obs=(workouts[key]&&workouts[key].obs)||'';
       var title=date.getDate()+' '+MN[date.getMonth()]+(t?' — '+t+' treino'+(t>1?'s':''):'')+(obs?' ('+obs+')':'');
-      cells.push('<div class="hcell" style="background:'+bg+'" title="'+title+'"'+(isFut?'':' onclick="openPov(\''+key+'\',this)"')+'></div>');
+      cells.push('<div class="hcell" style="background:'+bg+'" title="'+title+'"+(isFut?'':' data-key="'+key+'"')+'></div>');
     }
   }
   var hg=document.getElementById('hm-g');hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';hg.innerHTML=cells.join('');
@@ -877,7 +980,7 @@ function renderCal(){
       var key=dk(d.getFullYear(),d.getMonth()+1,d.getDate());
       var w=workouts[key],uniq=[];if(w){for(var k in w.counts)if(w.counts[k]>0)uniq.push(k);}
       var total=dayTotal(key),isToday=key===TK,isFut=d>TODAY;
-      html+='<div class="wday" style="'+(isToday?'border-color:rgba(59,130,246,.5)':'')+'"'+(isFut?'':' onclick="openPov(\''+key+'\',this)"')+'>'+
+      html+='<div class="wday" style="'+(isToday?'border-color:rgba(59,130,246,.5)':'')+'"'+(isFut?'':' data-key="'+key+'"')+'>'+
         '<div class="wday-n">'+DIAS[d.getDay()]+'</div>'+
         '<div class="wday-d" style="color:'+(isToday?'#3B82F6':isFut?'rgba(255,255,255,.1)':'var(--mu2)')+'">'+d.getDate()+'</div>'+
         '<div class="wday-dots">'+uniq.map(function(id){var c=cats.find(function(x){return x.id===id;});return c?'<div class="ddot" style="background:'+c.color+';width:8px;height:8px;border-radius:2px"></div>':''}).join('')+'</div>'+
@@ -898,7 +1001,7 @@ function renderCal(){
       if(uniq.length===1){var c=cats.find(function(x){return x.id===uniq[0];});if(c){bg=c.color+'2a';tc=c.color;}}
       else if(uniq.length>1){bg='rgba(255,255,255,.07)';tc='var(--mu2)';}
       var dots=uniq.map(function(id){var c=cats.find(function(x){return x.id===id;});return c?'<div class="ddot" style="background:'+c.color+'"></div>':'';}).join('');
-      html+='<div class="cd'+(isToday?' today':isFut?' future':total===0?' rest':'')+'" style="background:'+bg+';color:'+(tc||'inherit')+'"'+(isFut?'':' onclick="openPov(\''+key+'\',this)"')+'>'+
+      html+='<div class="cd'+(isToday?' today':isFut?' future':total===0?' rest':'')+'" style="background:'+bg+';color:'+(tc||'inherit')+'"'+(isFut?'':' data-key="'+key+'"')+'>'+
         '<span class="cd-n">'+d+'</span>'+(uniq.length?'<div class="ddots">'+dots+'</div>':'')+
       '</div>';
     }
@@ -912,13 +1015,25 @@ function renderAll(){
   renderHeatmap();renderMtabs();renderLeg();renderCal();
   renderRegChips();renderCatMg();renderRC();
 }
-// INIT — ensure popover is direct child of body
+// INIT — ensure popover is direct child of body + delegated click listeners
 (function(){
   var bg=document.getElementById('pov-bg');
   var pov=document.getElementById('pov');
   var ut=document.getElementById('undo-toast');
   var t=document.getElementById('toast');
   [bg,pov,ut,t].forEach(function(el){if(el&&el.parentNode!==document.body)document.body.appendChild(el);});
+
+  // Delegated listener for all calendar/heatmap clicks via data-key
+  document.addEventListener('click', function(e){
+    var el=e.target;
+    // walk up max 3 levels to find data-key
+    for(var i=0;i<3;i++){
+      if(!el||el===document.body) break;
+      var key=el.getAttribute('data-key');
+      if(key){ openPov(key,el); return; }
+      el=el.parentElement;
+    }
+  });
 })();
 document.getElementById('sl-week').value=metaWeek;document.getElementById('vl-week').textContent=metaWeek;
 document.getElementById('sl-year').value=metaYear;document.getElementById('vl-year').textContent=metaYear;

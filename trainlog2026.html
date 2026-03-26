@@ -4,6 +4,10 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#080a0e"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="TrainLog"/>
 <title>TrainLog 2026</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -413,10 +417,18 @@ function buildDefWorkouts(){
 }
 
 // ── LOCALSTORAGE ───────────────────────────────────────────
+function dedupCats(arr){
+  var seen={};
+  return arr.filter(function(c){
+    var key=c.name.toLowerCase();
+    if(seen[key]) return false;
+    seen[key]=true; return true;
+  });
+}
 function loadState(){
   try{
     var s=localStorage.getItem('trainlog2026');
-    if(s){var p=JSON.parse(s);return{cats:p.cats||JSON.parse(JSON.stringify(DEF_CATS)),workouts:p.workouts||buildDefWorkouts(),metaWeek:p.metaWeek||5,metaYear:p.metaYear||200};}
+    if(s){var p=JSON.parse(s);return{cats:dedupCats(p.cats||JSON.parse(JSON.stringify(DEF_CATS))),workouts:p.workouts||buildDefWorkouts(),metaWeek:p.metaWeek||5,metaYear:p.metaYear||200};}
   }catch(e){}
   return{cats:JSON.parse(JSON.stringify(DEF_CATS)),workouts:buildDefWorkouts(),metaWeek:5,metaYear:200};
 }
@@ -699,6 +711,8 @@ function toggleAddCat(){var f=document.getElementById('addf');f.classList.toggle
 function renderCdots(){document.getElementById('cdots').innerHTML=PAL.map(function(c){return '<div class="cdot'+(c===selColor?' sel':'')+'" style="background:'+c+'" onclick="selColor=\''+c+'\';renderCdots()"></div>';}).join('');}
 function doAddCat(){
   var name=document.getElementById('new-cat').value.trim();if(!name)return;
+  var exists=cats.some(function(c){return c.name.toLowerCase()===name.toLowerCase();});
+  if(exists){toast('Categoria "'+name+'" já existe!');return;}
   cats.push({id:'c'+Date.now(),name:name,color:selColor,icon:'🏅'});
   document.getElementById('new-cat').value='';document.getElementById('addf').classList.remove('open');
   save();renderAll();toast('"'+name+'" criada!');
@@ -889,6 +903,14 @@ document.getElementById('sl-week').value=metaWeek;document.getElementById('vl-we
 document.getElementById('sl-year').value=metaYear;document.getElementById('vl-year').textContent=metaYear;
 var nd=TODAY;document.getElementById('reg-date').value=nd.getFullYear()+'-'+pad(nd.getMonth()+1)+'-'+pad(nd.getDate());
 renderAll();
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
 </script>
 </body>
 </html>

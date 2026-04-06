@@ -65,7 +65,8 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 .clear-do{background:var(--red);color:#fff;border:none;border-radius:var(--rs);padding:7px 16px;font-size:11px;font-weight:800;cursor:pointer;font-family:var(--font);white-space:nowrap}
 .clear-do:disabled{opacity:.4;cursor:default}
 /* TOP ROW */
-.top-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:11px}
+.top-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:11px}
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .hcard{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:13px}
 .hlbl{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.9px;margin-bottom:3px}
 .hbig{font-size:26px;font-weight:900;line-height:1}
@@ -152,6 +153,9 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 .wday-c{font-size:9px;color:var(--mu);margin-top:3px}
 /* CATEGORIES */
 .cchip{padding:4px 10px;border-radius:20px;font-size:11px;border:1px solid;background:rgba(255,255,255,.04);display:flex;align-items:center;gap:5px}
+.cat-edit-row{background:var(--s2);border-radius:var(--rs);padding:12px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cat-edit-row input{background:var(--s1);border:1px solid var(--b2);border-radius:var(--rs);padding:5px 9px;color:var(--tx);font-size:11px;outline:none;font-family:var(--font);flex:1;min-width:100px}
+.cat-edit-row input:focus{border-color:var(--c1)}
 .cx{opacity:.4;cursor:pointer;font-size:10px;pointer-events:all}
 .cx:hover{opacity:1}
 .addf{display:none;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px solid var(--b1)}
@@ -199,8 +203,8 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 .tab-content{display:none}.tab-content.active{display:block}
 .mrow{display:flex;align-items:center;gap:8px;margin-top:6px}
 .mrow input[type=range]{flex:1;accent-color:var(--c3)}
-@media(max-width:680px){.top-row{grid-template-columns:repeat(3,1fr)}.mid{grid-template-columns:1fr}.sstrip{grid-template-columns:repeat(2,1fr)}.clear-grid{grid-template-columns:1fr}.reg-2col{grid-template-columns:1fr!important}}
-@media(max-width:440px){.top-row{grid-template-columns:repeat(2,1fr)}.top-row .hcard:last-child{grid-column:1/-1}}
+@media(max-width:680px){.top-row{grid-template-columns:repeat(3,1fr)}.stats-row{grid-template-columns:1fr 1fr}.mid{grid-template-columns:1fr}.sstrip{grid-template-columns:repeat(2,1fr)}.clear-grid{grid-template-columns:1fr}.reg-2col{grid-template-columns:1fr!important}}
+@media(max-width:440px){.top-row{grid-template-columns:repeat(3,1fr)}.stats-row{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -240,6 +244,7 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
   <div class="top-row" id="top-row"></div>
   <div class="acard" id="acard"></div>
   <div class="sstrip" id="sstrip"></div>
+  <div class="stats-row" id="stats-row"></div>
   <div class="mid">
     <div class="card">
       <div class="ctitle">Por modalidade</div>
@@ -552,7 +557,12 @@ function periodDays(){
 }
 function computeStreak(){
   var streak=0,maxStreak=0,d=new Date(TODAY);
-  while(true){var k=dk(d.getFullYear(),d.getMonth()+1,d.getDate());if(dayTotal(k)>0){streak++;d.setDate(d.getDate()-1);}else break;}
+  // if today has no workout, allow starting from yesterday (day not over yet)
+  if(dayTotal(dk(d.getFullYear(),d.getMonth()+1,d.getDate()))===0) d.setDate(d.getDate()-1);
+  while(true){
+    var k=dk(d.getFullYear(),d.getMonth()+1,d.getDate());
+    if(dayTotal(k)>0){streak++;d.setDate(d.getDate()-1);}else break;
+  }
   var allKeys=Object.keys(workouts).filter(function(k){return dayTotal(k)>0;}).sort();
   var run=0,prev=null;
   allKeys.forEach(function(k){var dt=new Date(k+'T00:00:00');if(prev){var diff=(dt-prev)/86400000;run=diff===1?run+1:1;}else run=1;if(run>maxStreak)maxStreak=run;prev=dt;});
@@ -718,14 +728,71 @@ function doBulk(){
 }
 
 // CATEGORIES
+var editingCat=null;
 function renderCatMg(){
-  document.getElementById('cat-mg').innerHTML=cats.map(function(c){
-    return '<div class="cchip" style="border-color:'+c.color+';color:'+c.color+'">'+c.icon+' '+c.name+'<span class="cx" onclick="removeCat(\''+c.id+'\')">✕</span></div>';
-  }).join('');
+  var html='';
+  cats.forEach(function(c){
+    if(editingCat===c.id){
+      html+='<div class="cat-edit-row" id="edit-row-'+c.id+'">'+
+        '<div class="cdots" id="cdots-edit-'+c.id+'"></div>'+
+        '<input type="text" id="edit-name-'+c.id+'" value="'+c.name.replace(/"/g,'&quot;')+'" style="max-width:160px"/>'+
+        '<button class="rbtn" style="padding:5px 12px;font-size:11px" data-save="'+c.id+'">Salvar</button>'+
+        '<button class="hbtn" data-cancel="1">Cancelar</button>'+
+      '</div>';
+    } else {
+      html+='<div class="cchip" style="border-color:'+c.color+';color:'+c.color+'" data-edit="'+c.id+'">'+
+        '<span style="cursor:pointer;display:flex;align-items:center;gap:4px">'+c.icon+' '+c.name+'</span>'+
+        '<span style="opacity:.4;cursor:pointer;font-size:10px;margin-left:4px">✎</span>'+
+        '<span class="cx" data-remove="'+c.id+'">✕</span>'+
+      '</div>';
+    }
+  });
+  document.getElementById('cat-mg').innerHTML=html;
+  cats.forEach(function(c){
+    if(editingCat===c.id){
+      var dotsEl=document.getElementById('cdots-edit-'+c.id);
+      if(dotsEl) dotsEl.innerHTML=PAL.map(function(col){
+        return '<div class="cdot'+(col===c.color?' sel':'')+'" style="background:'+col+'" data-setcolor="'+c.id+'" data-col="'+col+'"></div>';
+      }).join('');
+    }
+  });
+}
+// Delegated click handler for cat-mg
+document.addEventListener('click',function(e){
+  var el=e.target;
+  // remove cat
+  if(el.getAttribute('data-remove')){removeCat(el.getAttribute('data-remove'));return;}
+  // start edit — click anywhere on cchip except remove
+  var chip=el.closest&&el.closest('[data-edit]');
+  if(chip&&!el.getAttribute('data-remove')){startEditCat(chip.getAttribute('data-edit'));return;}
+  // save edit
+  if(el.getAttribute('data-save')){saveCatEdit(el.getAttribute('data-save'));return;}
+  // cancel edit
+  if(el.getAttribute('data-cancel')){editingCat=null;renderCatMg();return;}
+  // set color in edit
+  if(el.getAttribute('data-setcolor')){setCatEditColor(el.getAttribute('data-setcolor'),el.getAttribute('data-col'));return;}
+});
+function startEditCat(id){editingCat=id;renderCatMg();}
+function setCatEditColor(id,col){
+  var cat=cats.find(function(c){return c.id===id;});
+  if(cat){cat.color=col;renderCatMg();}
+}
+function saveCatEdit(id){
+  var cat=cats.find(function(c){return c.id===id;});
+  if(!cat)return;
+  var nameEl=document.getElementById('edit-name-'+id);
+  var name=nameEl?nameEl.value.trim():'';
+  if(!name){toast('Nome não pode ser vazio');return;}
+  var dup=cats.some(function(c){return c.id!==id&&c.name.toLowerCase()===name.toLowerCase();});
+  if(dup){toast('"'+name+'" já existe!');return;}
+  cat.name=name;
+  editingCat=null;
+  save();renderAll();toast('Categoria atualizada!');
 }
 function removeCat(id){if(cats.length<2){toast('Mínimo 1');return;}cats=cats.filter(function(c){return c.id!==id;});save();renderAll();}
 function toggleAddCat(){renderCdots();}
-function renderCdots(){document.getElementById('cdots').innerHTML=PAL.map(function(c){return '<div class="cdot'+(c===selColor?' sel':'')+'" style="background:'+c+'" onclick="selColor=\''+c+'\';renderCdots()"></div>';}).join('');}
+function renderCdots(){document.getElementById('cdots').innerHTML=PAL.map(function(col){return '<div class="cdot'+(col===selColor?' sel':'')+'" style="background:'+col+'" data-newcolor="'+col+'"></div>';}).join('');}
+document.addEventListener('click',function(e){if(e.target.getAttribute('data-newcolor')){selColor=e.target.getAttribute('data-newcolor');renderCdots();}});
 function doAddCat(){
   var name=document.getElementById('new-cat').value.trim();if(!name)return;
   var exists=cats.some(function(c){return c.name.toLowerCase()===name.toLowerCase();});
@@ -870,12 +937,15 @@ function setChT(t,el){chartType=t;document.querySelectorAll('.ctab').forEach(fun
 function renderTopRow(){
   var s=computeStats(),pd=periodDays(),str=computeStreak(),ym=computeYearMetaFull();
   var pctS=ym.pctS,colS=ym.onTrackS?'#22C55E':'#F97316';
+  // top-row: 3 cards — Dias duplos, Streak, Meta treinos
   document.getElementById('top-row').innerHTML=
-    '<div class="hcard"><div class="hlbl">Dias ativos</div><div class="hbig" style="color:#3B82F6">'+s.active+'</div><div class="hsub">de '+pd+' dias</div><div class="hbar-w"><div class="hbar" style="background:#3B82F6;width:'+Math.min(100,Math.round(s.active/pd*100))+'%"></div></div></div>'+
-    '<div class="hcard"><div class="hlbl">Total treinos</div><div class="hbig" style="color:#F97316">'+s.total+'</div><div class="hsub">'+(s.active?(s.total/s.active).toFixed(1):0)+'/dia ativo</div><div class="hbar-w"><div class="hbar" style="background:#F97316;width:'+Math.min(100,Math.round(s.total/Math.max(pd,1)*100))+'%"></div></div></div>'+
     '<div class="hcard"><div class="hlbl">Dias duplos</div><div class="hbig" style="color:#A855F7">'+s.doubles+'</div><div class="hsub">'+(s.active?(s.doubles/s.active*100).toFixed(0):0)+'% dos ativos</div><div class="hbar-w"><div class="hbar" style="background:#A855F7;width:'+Math.min(100,Math.round(s.doubles/Math.max(s.active,1)*100))+'%"></div></div></div>'+
     '<div class="hcard"><div class="hlbl">🔥 Streak atual</div><div class="hbig" style="color:#EAB308">'+str.streak+'</div><div class="hsub">Recorde: '+str.maxStreak+' dias</div><div class="hbar-w"><div class="hbar" style="background:#EAB308;width:'+Math.min(100,Math.round(str.streak/Math.max(str.maxStreak,1)*100))+'%"></div></div></div>'+
     '<div class="hcard"><div class="hlbl">🏋️ Meta treinos</div><div class="hbig" style="color:'+colS+'">'+ym.totalSess+'</div><div class="hsub">meta: '+metaSessions+' · '+pctS+'%</div><div class="hbar-w"><div class="hbar" style="background:'+colS+';width:'+pctS+'%"></div></div></div>';
+  // stats-row: 2 cards above chart — Dias ativos, Total treinos
+  document.getElementById('stats-row').innerHTML=
+    '<div class="hcard"><div class="hlbl">Dias ativos</div><div class="hbig" style="color:#3B82F6">'+s.active+'</div><div class="hsub">de '+pd+' dias no período</div><div class="hbar-w"><div class="hbar" style="background:#3B82F6;width:'+Math.min(100,Math.round(s.active/pd*100))+'%"></div></div></div>'+
+    '<div class="hcard"><div class="hlbl">Total treinos</div><div class="hbig" style="color:#F97316">'+s.total+'</div><div class="hsub">'+(s.active?(s.total/s.active).toFixed(1):0)+' por dia ativo</div><div class="hbar-w"><div class="hbar" style="background:#F97316;width:'+Math.min(100,Math.round(s.total/Math.max(pd,1)*100))+'%"></div></div></div>';
 }
 function renderAcard(){
   var ym=computeYearMetaFull();
@@ -946,28 +1016,131 @@ function renderChart(){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#5a6480',font:{size:9},maxRotation:0,autoSkip:labels.length>15}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#5a6480',font:{size:9}},beginAtZero:true}}}
   });
 }
+function hmCellColor(t,isFut){
+  if(isFut||t===0)return 'rgba(255,255,255,.04)';
+  if(t===1)return '#1e3a5f';
+  if(t===2)return '#2563a8';
+  if(t===3)return '#3B82F6';
+  return '#93c5fd';
+}
+function hmCell(key,size){
+  var t=dayTotal(key),isFut=new Date(key+'T00:00:00')>TODAY;
+  var bg=hmCellColor(t,isFut);
+  var obs=(workouts[key]&&workouts[key].obs)||'';
+  var date=new Date(key+'T00:00:00');
+  var title=date.getDate()+' '+MN[date.getMonth()]+(t?' — '+t+' treino'+(t>1?'s':''):'')+(obs?' ('+obs+')':'');
+  var sz=size?'min-width:'+size+'px;':'min-width:9px;';
+  return '<div class="hcell" style="background:'+bg+';'+sz+'" title="'+title+'"'+(isFut?'':' data-key="'+key+'"')+'></div>';
+}
+
 function renderHeatmap(){
-  var jan1=new Date(2026,0,1),jan1Day=jan1.getDay(),weeks=Math.ceil((jan1Day+365)/7);
-  var ml=[];for(var i=0;i<weeks;i++)ml.push('');
-  for(var m=0;m<12;m++){var d=new Date(2026,m,1);var di=Math.floor((d-jan1)/86400000);var col=Math.floor((di+jan1Day)/7);ml[col]=MN[m];}
-  var hm=document.getElementById('hm-m');hm.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+  var hm=document.getElementById('hm-m'),hg=document.getElementById('hm-g');
+
+  // ── WEEK mode: 7 large cells ──────────────────────
+  if(rangeMode==='week'){
+    var ws=getWeekStart(filterWeekOff);
+    hm.style.gridTemplateColumns='repeat(7,1fr)';
+    hm.innerHTML=Array.from({length:7},function(_,i){
+      var d=new Date(ws);d.setDate(d.getDate()+i);
+      return '<div class="hm-mlbl" style="text-align:center">'+DIAS[d.getDay()]+'<br><span style="color:var(--tx);font-size:9px">'+d.getDate()+'/'+MN[d.getMonth()]+'</span></div>';
+    }).join('');
+    hg.style.gridTemplateColumns='repeat(7,1fr)';
+    hg.innerHTML=Array.from({length:7},function(_,i){
+      var d=new Date(ws);d.setDate(d.getDate()+i);
+      return hmCell(dk(d.getFullYear(),d.getMonth()+1,d.getDate()),40);
+    }).join('');
+    return;
+  }
+
+  // ── MONTH mode: weeks of that month, larger cells ─
+  if(rangeMode==='month'){
+    var y=filterYear,m=filterMonth;
+    var firstDay=new Date(y,m,1).getDay();
+    var dim=new Date(y,m+1,0).getDate();
+    // build week columns for this month
+    var totalCells=firstDay+dim;
+    var weeks=Math.ceil(totalCells/7);
+    // day-of-week headers
+    hm.style.gridTemplateColumns='repeat(7,1fr)';
+    hm.innerHTML=DIAS.map(function(d){return '<div class="hm-mlbl" style="text-align:center">'+d+'</div>';}).join('');
+    // cells: pad start, then days
+    var cells=[];
+    for(var i=0;i<firstDay;i++) cells.push('<div style="aspect-ratio:1"></div>');
+    for(var d=1;d<=dim;d++){
+      var key=dk(y,m+1,d);
+      cells.push(hmCell(key,28));
+    }
+    hg.style.gridTemplateColumns='repeat(7,1fr)';
+    hg.innerHTML=cells.join('');
+    return;
+  }
+
+  // ── CUSTOM mode: date range ───────────────────────
+  if(rangeMode==='custom'&&customFrom&&customTo){
+    var start=new Date(customFrom+'T00:00:00');
+    var end=new Date(customTo+'T00:00:00');
+    var startDay=start.getDay();
+    // build weeks
+    var days=[];
+    var cur=new Date(start);
+    while(cur<=end){days.push(new Date(cur));cur.setDate(cur.getDate()+1);}
+    var totalCells=startDay+days.length;
+    var weeks=Math.ceil(totalCells/7);
+    // month labels row
+    var ml=Array(weeks).fill('');
+    var prevM=-1;
+    days.forEach(function(d){
+      var col=Math.floor((startDay+days.indexOf(d))/7);
+      if(d.getMonth()!==prevM){ml[col]=MN[d.getMonth()];prevM=d.getMonth();}
+    });
+    hm.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+    hm.innerHTML=ml.map(function(l){return '<div class="hm-mlbl">'+l+'</div>';}).join('');
+    var cells=[];
+    for(var i=0;i<startDay;i++) cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');
+    days.forEach(function(d){
+      cells.push(hmCell(dk(d.getFullYear(),d.getMonth()+1,d.getDate()),0));
+    });
+    // pad end to fill last week
+    var rem=(7-((startDay+days.length)%7))%7;
+    for(var i=0;i<rem;i++) cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');
+    hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+    hg.innerHTML=cells.join('');
+    return;
+  }
+
+  // ── ALL / YEAR mode: full year grid ──────────────
+  // Fix alignment: week col index = floor((dayOfYear + jan1DayOfWeek) / 7)
+  var jan1=new Date(2026,0,1);
+  var jan1Day=jan1.getDay(); // 0=Sun of Jan 1 2026 (it's Thursday=4)
+  var weeks=Math.ceil((jan1Day+365)/7);
+
+  // Month labels: place label at the week column where the 1st of month falls
+  var ml=Array(weeks).fill('');
+  for(var m=0;m<12;m++){
+    var d=new Date(2026,m,1);
+    var dayOfYear=Math.floor((d-jan1)/86400000); // 0-based
+    var col=Math.floor((dayOfYear+jan1Day)/7);
+    if(col<weeks) ml[col]=MN[m];
+  }
+  hm.style.gridTemplateColumns='repeat('+weeks+',1fr)';
   hm.innerHTML=ml.map(function(l){return '<div class="hm-mlbl">'+l+'</div>';}).join('');
+
+  // Cells: column-major (week by week, Sun→Sat)
   var cells=[];
   for(var w=0;w<weeks;w++){
     for(var d=0;d<7;d++){
-      var idx=w*7+d-jan1Day;
-      if(idx<0||idx>=365){cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');continue;}
+      var idx=w*7+d-jan1Day; // day of year 0-based
+      if(idx<0||idx>=365){
+        cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');
+        continue;
+      }
       var date=new Date(2026,0,1+idx);
       var key=dk(2026,date.getMonth()+1,date.getDate());
-      var t=dayTotal(key),isFut=date>TODAY;
-      var bg='rgba(255,255,255,.04)';
-      if(!isFut&&t>0){if(t===1)bg='#1e3a5f';else if(t===2)bg='#2563a8';else if(t===3)bg='#3B82F6';else bg='#93c5fd';}
-      var obs=(workouts[key]&&workouts[key].obs)||'';
-      var title=date.getDate()+' '+MN[date.getMonth()]+(t?' — '+t+' treino'+(t>1?'s':''):'')+(obs?' ('+obs+')':'');
-      cells.push('<div class="hcell" style="background:'+bg+'" title="'+title+'"'+(isFut?'':' data-key="'+key+'"')+'></div>');
+      cells.push(hmCell(key,0));
     }
   }
-  var hg=document.getElementById('hm-g');hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';hg.innerHTML=cells.join('');
+  hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+  hg.innerHTML=cells.join('');
 }
 function renderMtabs(){
   var html='';

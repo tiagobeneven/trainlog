@@ -66,7 +66,6 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 .clear-do:disabled{opacity:.4;cursor:default}
 /* TOP ROW */
 .top-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:11px}
-.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
 .hcard{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:13px}
 .hlbl{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.9px;margin-bottom:3px}
 .hbig{font-size:26px;font-weight:900;line-height:1}
@@ -116,7 +115,7 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 .hmscroll{overflow-x:auto;padding-bottom:4px}
 .hm-months{display:grid;margin-bottom:3px}
 .hm-mlbl{font-size:8px;color:var(--mu)}
-.hm-grid{display:grid;gap:2px}
+.hm-grid{display:grid;gap:2px;grid-auto-flow:column}
 .hcell{aspect-ratio:1;border-radius:2px;min-width:9px;cursor:pointer;transition:transform .1s}
 .hcell:hover{transform:scale(1.5);z-index:2;position:relative}
 .hm-legend{display:flex;align-items:center;gap:5px;margin-top:6px;justify-content:flex-end}
@@ -242,9 +241,8 @@ html,body{background:var(--bg);color:var(--tx);font-family:var(--font);min-heigh
 <!-- TAB: GERAL -->
 <div id="tab-geral" class="tab-content active">
   <div class="top-row" id="top-row"></div>
-  <div class="acard" id="acard"></div>
   <div class="sstrip" id="sstrip"></div>
-  <div class="stats-row" id="stats-row"></div>
+  <div class="acard" id="acard"></div>
   <div class="mid">
     <div class="card">
       <div class="ctitle">Por modalidade</div>
@@ -733,11 +731,20 @@ function renderCatMg(){
   var html='';
   cats.forEach(function(c){
     if(editingCat===c.id){
+      var emojis=['🏋️', '🏃', '⚽', '✨', '🚴', '🏊', '🧘', '🥊', '🤸', '🏀', '🎾', '⛹️', '🏄', '🚣', '🧗', '🏇', '🏌️', '🤾', '🎿', '🏋', '🏅', '💪', '🔥', '⚡', '🎯'];
       html+='<div class="cat-edit-row" id="edit-row-'+c.id+'">'+
-        '<div class="cdots" id="cdots-edit-'+c.id+'"></div>'+
-        '<input type="text" id="edit-name-'+c.id+'" value="'+c.name.replace(/"/g,'&quot;')+'" style="max-width:160px"/>'+
-        '<button class="rbtn" style="padding:5px 12px;font-size:11px" data-save="'+c.id+'">Salvar</button>'+
-        '<button class="hbtn" data-cancel="1">Cancelar</button>'+
+        '<div style="width:100%;margin-bottom:8px">'+
+          '<div style="font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">Emoji</div>'+
+          '<div style="display:flex;gap:4px;flex-wrap:wrap" id="emoji-pick-'+c.id+'">'+
+            emojis.map(function(em){return '<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;font-size:16px;border:1.5px solid '+(em===c.icon?'var(--c1)':'var(--b2)')+';background:'+(em===c.icon?'rgba(59,130,246,.15)':'var(--s1)')+'" data-setemoji="'+c.id+'" data-em="'+em+'">'+em+'</div>';}).join('')+
+          '</div>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;width:100%">'+
+          '<div class="cdots" id="cdots-edit-'+c.id+'"></div>'+
+          '<input type="text" id="edit-name-'+c.id+'" value="'+c.name.replace(/"/g,'&quot;')+'" style="max-width:160px"/>'+
+          '<button class="rbtn" style="padding:5px 12px;font-size:11px" data-save="'+c.id+'">Salvar</button>'+
+          '<button class="hbtn" data-cancel="1">Cancelar</button>'+
+        '</div>'+
       '</div>';
     } else {
       html+='<div class="cchip" style="border-color:'+c.color+';color:'+c.color+'" data-edit="'+c.id+'">'+
@@ -765,6 +772,13 @@ document.addEventListener('click',function(e){
   // start edit — click anywhere on cchip except remove
   var chip=el.closest&&el.closest('[data-edit]');
   if(chip&&!el.getAttribute('data-remove')){startEditCat(chip.getAttribute('data-edit'));return;}
+  // set emoji
+  if(el.getAttribute('data-setemoji')){
+    var id=el.getAttribute('data-setemoji'),em=el.getAttribute('data-em');
+    var cat=cats.find(function(x){return x.id===id;});
+    if(cat){cat.icon=em;renderCatMg();}
+    return;
+  }
   // save edit
   if(el.getAttribute('data-save')){saveCatEdit(el.getAttribute('data-save'));return;}
   // cancel edit
@@ -942,10 +956,6 @@ function renderTopRow(){
     '<div class="hcard"><div class="hlbl">Dias duplos</div><div class="hbig" style="color:#A855F7">'+s.doubles+'</div><div class="hsub">'+(s.active?(s.doubles/s.active*100).toFixed(0):0)+'% dos ativos</div><div class="hbar-w"><div class="hbar" style="background:#A855F7;width:'+Math.min(100,Math.round(s.doubles/Math.max(s.active,1)*100))+'%"></div></div></div>'+
     '<div class="hcard"><div class="hlbl">🔥 Streak atual</div><div class="hbig" style="color:#EAB308">'+str.streak+'</div><div class="hsub">Recorde: '+str.maxStreak+' dias</div><div class="hbar-w"><div class="hbar" style="background:#EAB308;width:'+Math.min(100,Math.round(str.streak/Math.max(str.maxStreak,1)*100))+'%"></div></div></div>'+
     '<div class="hcard"><div class="hlbl">🏋️ Meta treinos</div><div class="hbig" style="color:'+colS+'">'+ym.totalSess+'</div><div class="hsub">meta: '+metaSessions+' · '+pctS+'%</div><div class="hbar-w"><div class="hbar" style="background:'+colS+';width:'+pctS+'%"></div></div></div>';
-  // stats-row: 2 cards above chart — Dias ativos, Total treinos
-  document.getElementById('stats-row').innerHTML=
-    '<div class="hcard"><div class="hlbl">Dias ativos</div><div class="hbig" style="color:#3B82F6">'+s.active+'</div><div class="hsub">de '+pd+' dias no período</div><div class="hbar-w"><div class="hbar" style="background:#3B82F6;width:'+Math.min(100,Math.round(s.active/pd*100))+'%"></div></div></div>'+
-    '<div class="hcard"><div class="hlbl">Total treinos</div><div class="hbig" style="color:#F97316">'+s.total+'</div><div class="hsub">'+(s.active?(s.total/s.active).toFixed(1):0)+' por dia ativo</div><div class="hbar-w"><div class="hbar" style="background:#F97316;width:'+Math.min(100,Math.round(s.total/Math.max(pd,1)*100))+'%"></div></div></div>';
 }
 function renderAcard(){
   var ym=computeYearMetaFull();
@@ -1045,6 +1055,8 @@ function renderHeatmap(){
       return '<div class="hm-mlbl" style="text-align:center">'+DIAS[d.getDay()]+'<br><span style="color:var(--tx);font-size:9px">'+d.getDate()+'/'+MN[d.getMonth()]+'</span></div>';
     }).join('');
     hg.style.gridTemplateColumns='repeat(7,1fr)';
+    hg.style.gridTemplateRows='';
+    hg.style.gridAutoFlow='row';
     hg.innerHTML=Array.from({length:7},function(_,i){
       var d=new Date(ws);d.setDate(d.getDate()+i);
       return hmCell(dk(d.getFullYear(),d.getMonth()+1,d.getDate()),40);
@@ -1071,6 +1083,8 @@ function renderHeatmap(){
       cells.push(hmCell(key,28));
     }
     hg.style.gridTemplateColumns='repeat(7,1fr)';
+    hg.style.gridTemplateRows='';
+    hg.style.gridAutoFlow='row';
     hg.innerHTML=cells.join('');
     return;
   }
@@ -1104,34 +1118,40 @@ function renderHeatmap(){
     var rem=(7-((startDay+days.length)%7))%7;
     for(var i=0;i<rem;i++) cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');
     hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+    hg.style.gridTemplateRows='';
+    hg.style.gridAutoFlow='row';
     hg.innerHTML=cells.join('');
     return;
   }
 
-  // ── ALL / YEAR mode: full year grid ──────────────
-  // Fix alignment: week col index = floor((dayOfYear + jan1DayOfWeek) / 7)
+  // ── ALL / YEAR mode: GitHub-style heatmap ───────
   var jan1=new Date(2026,0,1);
-  var jan1Day=jan1.getDay(); // 0=Sun of Jan 1 2026 (it's Thursday=4)
+  var jan1Day=jan1.getDay(); // Jan 1 2026 is Thursday = 4
   var weeks=Math.ceil((jan1Day+365)/7);
 
-  // Month labels: place label at the week column where the 1st of month falls
+  // Month labels: one span per week-column, label appears on week where month starts
   var ml=Array(weeks).fill('');
   for(var m=0;m<12;m++){
     var d=new Date(2026,m,1);
-    var dayOfYear=Math.floor((d-jan1)/86400000); // 0-based
+    var dayOfYear=Math.floor((d-jan1)/86400000);
     var col=Math.floor((dayOfYear+jan1Day)/7);
     if(col<weeks) ml[col]=MN[m];
   }
+  // Month row: same columns as grid
   hm.style.gridTemplateColumns='repeat('+weeks+',1fr)';
-  hm.innerHTML=ml.map(function(l){return '<div class="hm-mlbl">'+l+'</div>';}).join('');
+  hm.innerHTML=ml.map(function(l){
+    return '<div class="hm-mlbl" style="white-space:nowrap;overflow:hidden">'+l+'</div>';
+  }).join('');
 
-  // Cells: column-major (week by week, Sun→Sat)
+  // Cells: grid-auto-flow:column means we fill column by column (Sun→Sat per col)
+  // So we output cells in row-major order (row 0=Sun, row 1=Mon... row 6=Sat)
+  // grid-template-rows:repeat(7,1fr) with grid-auto-flow:column
   var cells=[];
   for(var w=0;w<weeks;w++){
     for(var d=0;d<7;d++){
-      var idx=w*7+d-jan1Day; // day of year 0-based
+      var idx=w*7+d-jan1Day;
       if(idx<0||idx>=365){
-        cells.push('<div style="aspect-ratio:1;min-width:9px"></div>');
+        cells.push('<div style="min-width:9px;aspect-ratio:1"></div>');
         continue;
       }
       var date=new Date(2026,0,1+idx);
@@ -1140,6 +1160,7 @@ function renderHeatmap(){
     }
   }
   hg.style.gridTemplateColumns='repeat('+weeks+',1fr)';
+  hg.style.gridTemplateRows='repeat(7,1fr)';
   hg.innerHTML=cells.join('');
 }
 function renderMtabs(){
